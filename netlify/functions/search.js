@@ -1,5 +1,11 @@
 const fetch = require("node-fetch");
 
+// Extract JSON even if surrounded by text
+function extractJSON(str) {
+  const jsonMatch = str.match(/\{[\s\S]*\}/); 
+  return jsonMatch ? jsonMatch[0] : null;
+}
+
 exports.handler = async (event) => {
   if (event.httpMethod !== "POST") {
     return { statusCode: 405, body: "Method Not Allowed" };
@@ -12,7 +18,7 @@ exports.handler = async (event) => {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        Authorization: `Bearer ${process.env.GROQ_API_KEY}`,
+        "Authorization": `Bearer ${process.env.GROQ_API_KEY}`,
       },
       body: JSON.stringify({
         model: "llama3-70b-8192",
@@ -20,12 +26,12 @@ exports.handler = async (event) => {
           {
             role: "user",
             content: `
-Return ONLY valid JSON.
-NO markdown. NO explanation. NO \`\`\` blocks.
+IMPORTANT:
+Respond ONLY with JSON.
+Do NOT include markdown.
+Do NOT include explanation.
 
-Search Twitter/X discussions about: "${query}"
-
-Return EXACT format:
+Your response MUST exactly match:
 
 {
   "summary": "...",
@@ -34,31 +40,45 @@ Return EXACT format:
   "keyPoints": ["point 1", "point 2"],
   "searchTerms": ["term1", "term2"]
 }
+
+Topic to search: "${query}"
 `
           }
         ],
-        temperature: 0.2,
-        max_tokens: 500
+        temperature: 0.1,
+        max_tokens: 700
       })
     });
 
     const data = await response.json();
 
-    // GROQ returns: data.choices[0].message.content
     let raw = data?.choices?.[0]?.message?.content || "";
 
-    // CLEAN accidental markdown formatting
+    // remove code fences and whitespace
     raw = raw.replace(/```json|```/g, "").trim();
+
+    // extract clean JSON from messy output
+    const jsonOnly = extractJSON(raw);
+
+    if (!jsonOnly) {
+      return {
+        statusCode: 500,
+        body: JSON.stringify({
+          error: "Groq output contained no valid JSON object",
+          rawResponse: raw
+        })
+      };
+    }
 
     let parsed;
     try {
-      parsed = JSON.parse(raw);
+      parsed = JSON.parse(jsonOnly);
     } catch (err) {
       return {
         statusCode: 500,
         body: JSON.stringify({
           error: "Groq returned invalid JSON",
-          rawResponse: raw
+          rawJSON: jsonOnly
         })
       };
     }
