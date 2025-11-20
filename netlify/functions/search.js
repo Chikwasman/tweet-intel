@@ -1,50 +1,52 @@
-// netlify/functions/search.js
+const fetch = require('node-fetch');
 
-import Anthropic from "@anthropic-ai/sdk";
-
-export const handler = async (event) => {
-  if (event.httpMethod !== "POST") {
-    return {
-      statusCode: 405,
-      body: "Method Not Allowed"
-    };
+exports.handler = async (event) => {
+  if (event.httpMethod !== 'POST') {
+    return { statusCode: 405, body: 'Method Not Allowed' };
   }
 
   try {
     const { query } = JSON.parse(event.body);
 
-    const client = new Anthropic({
-      apiKey: process.env.ANTHROPIC_API_KEY
-    });
+    const response = await fetch("https://api.groq.com/openai/v1/chat/completions", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "Authorization": `Bearer ${process.env.GROQ_API_KEY}`,
+      },
+      body: JSON.stringify({
+        model: "llama3-70b-8192",
+        messages: [
+          {
+            role: "user",
+            content: `
+Search for recent Twitter/X discussions about: "${query}"
 
-    const response = await client.messages.create({
-      model: "claude-3-5-sonnet-latest",
-      max_tokens: 1000,
-      messages: [
-        {
-          role: "user",
-          content: `
-Search Twitter/X crypto discussions about: "${query}"
-
-Return ONLY JSON:
-
+Provide a JSON response with:
 {
   "summary": "...",
-  "keyAccounts": ["@...", "@..."],
-  "sentiment": "bullish | bearish | neutral | mixed",
-  "keyPoints": ["...", "..."],
-  "searchTerms": ["...", "..."]
+  "keyAccounts": ["@user1"],
+  "sentiment": "bullish/bearish/neutral/mixed",
+  "keyPoints": ["point 1", "point 2"],
+  "searchTerms": ["term1", "term2"]
 }
+
+Respond ONLY with valid JSON.
 `
-        }
-      ]
+          }
+        ],
+        temperature: 0.2,
+        max_tokens: 800
+      })
     });
 
-    // Return Claude object directly to frontend
+    const data = await response.json();
+
     return {
       statusCode: 200,
-      body: JSON.stringify(response)
+      body: JSON.stringify({ content: data.choices[0].message.content })
     };
+
   } catch (err) {
     return {
       statusCode: 500,

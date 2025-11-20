@@ -18,7 +18,9 @@ export default function CryptoTwitterSearch() {
   const [showDonation, setShowDonation] = useState(false);
   const [copiedAddress, setCopiedAddress] = useState('');
 
-  // ✅ FIXED NETLIFY API CALL + SAFE PARSING
+  // ----------------------------------------------------
+  // ✅ FIXED FOR GROQ BACKEND (NOT ANTHROPIC)
+  // ----------------------------------------------------
   const searchTwitter = async () => {
     if (!query.trim()) {
       setError('Please enter a crypto event or story to search');
@@ -40,34 +42,30 @@ export default function CryptoTwitterSearch() {
 
       const data = await response.json();
 
-      // ------------------------
-      // ✅ SAFE EXTRACT AI BLOCKS
-      // ------------------------
+      // ----------------------------------------------------
+      // ✔️ GROQ RETURNS: { content: "JSON STRING" }
+      // ----------------------------------------------------
       let textContent = '';
 
-      if (data?.content && Array.isArray(data.content)) {
-        for (const block of data.content) {
-          if (block.type === 'text') {
-            textContent += block.text;
-          }
-        }
+      if (typeof data?.content === 'string') {
+        textContent = data.content;
       } else if (data?.error) {
         throw new Error(data.error);
       } else {
         throw new Error('Invalid API response from server.');
       }
 
-      // ------------------------
-      // ✅ CLEAN JSON SAFELY
-      // ------------------------
+      // ----------------------------------------------------
+      // ✔️ CLEAN JSON (removes ```json ``` etc.)
+      // ----------------------------------------------------
       const cleanText = textContent
         .replace(/```json/gi, '')
         .replace(/```/g, '')
         .trim();
 
-      // ------------------------
-      // ✅ PARSE JSON SAFELY
-      // ------------------------
+      // ----------------------------------------------------
+      // ✔️ PARSE JSON SAFELY
+      // ----------------------------------------------------
       let parsed;
       try {
         parsed = JSON.parse(cleanText);
@@ -86,9 +84,8 @@ export default function CryptoTwitterSearch() {
     }
   };
 
-  // ✅ FIXED ENTER KEY (cross-browser)
   const handleKeyPress = (e) => {
-    if (e.key.toLowerCase() === 'enter') {
+    if (e.key?.toLowerCase() === 'enter') {
       searchTwitter();
     }
   };
@@ -143,7 +140,7 @@ export default function CryptoTwitterSearch() {
                 type="text"
                 value={query}
                 onChange={(e) => setQuery(e.target.value)}
-                onKeyDown={handleKeyPress} // ← FIXED
+                onKeyDown={handleKeyPress}
                 placeholder="e.g., Bitcoin ETF approval, Ethereum merge, FTX collapse..."
                 className="w-full pl-12 pr-4 py-4 bg-white/5 border border-purple-500/30 rounded-xl text-white placeholder-purple-300/50 focus:outline-none focus:border-purple-400 focus:ring-2 focus:ring-purple-400/20"
               />
@@ -314,7 +311,6 @@ export default function CryptoTwitterSearch() {
             </p>
 
             <div className="space-y-3">
-              {/* EVM */}
               <button
                 onClick={() => copyToClipboard(donationAddresses.evm, 'evm')}
                 className="w-full group bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 p-4 rounded-xl transition-all duration-200 hover:scale-105"
@@ -335,7 +331,6 @@ export default function CryptoTwitterSearch() {
                 </div>
               </button>
 
-              {/* Solana */}
               <button
                 onClick={() => copyToClipboard(donationAddresses.solana, 'solana')}
                 className="w-full group bg-gradient-to-r from-cyan-600 to-blue-600 hover:from-cyan-500 hover:to-blue-500 p-4 rounded-xl transition-all duration-200 hover:scale-105"
@@ -354,7 +349,6 @@ export default function CryptoTwitterSearch() {
                 </div>
               </button>
 
-              {/* Bitcoin */}
               <button
                 onClick={() => copyToClipboard(donationAddresses.bitcoin, 'bitcoin')}
                 className="w-full group bg-gradient-to-r from-orange-600 to-yellow-600 hover:from-orange-500 hover:to-yellow-500 p-4 rounded-xl transition-all duration-200 hover:scale-105"
