@@ -1,11 +1,5 @@
 const fetch = require("node-fetch");
 
-// Extract JSON even if surrounded by text
-function extractJSON(str) {
-  const jsonMatch = str.match(/\{[\s\S]*\}/); 
-  return jsonMatch ? jsonMatch[0] : null;
-}
-
 exports.handler = async (event) => {
   if (event.httpMethod !== "POST") {
     return { statusCode: 405, body: "Method Not Allowed" };
@@ -18,7 +12,7 @@ exports.handler = async (event) => {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        "Authorization": `Bearer ${process.env.GROQ_API_KEY}`,
+        Authorization: `Bearer ${process.env.GROQ_API_KEY}`,
       },
       body: JSON.stringify({
         model: "llama3-70b-8192",
@@ -26,72 +20,68 @@ exports.handler = async (event) => {
           {
             role: "user",
             content: `
-IMPORTANT:
-Respond ONLY with JSON.
-Do NOT include markdown.
-Do NOT include explanation.
+Your task: Generate a **FAKE / AI-SIMULATED** Twitter/X discussion summary about this query:
 
-Your response MUST exactly match:
+"${query}"
 
+You are NOT allowed to use real tweets. Invent realistic crypto chatter.
+
+Return ONLY valid JSON:
 {
-  "summary": "...",
-  "keyAccounts": ["@user1"],
-  "sentiment": "bullish" | "bearish" | "neutral" | "mixed",
-  "keyPoints": ["point 1", "point 2"],
-  "searchTerms": ["term1", "term2"]
+  "summary": "string",
+  "keyAccounts": ["@example1", "@example2"],
+  "sentiment": "bullish | bearish | neutral | mixed",
+  "keyPoints": ["string", "string"],
+  "searchTerms": ["string", "string"]
 }
-
-Topic to search: "${query}"
-`
-          }
+Respond only with JSON — no explanations, no markdown.
+            `,
+          },
         ],
-        temperature: 0.1,
-        max_tokens: 700
-      })
+        temperature: 0.2,
+        max_tokens: 700,
+      }),
     });
 
     const data = await response.json();
 
-    let raw = data?.choices?.[0]?.message?.content || "";
-
-    // remove code fences and whitespace
-    raw = raw.replace(/```json|```/g, "").trim();
-
-    // extract clean JSON from messy output
-    const jsonOnly = extractJSON(raw);
-
-    if (!jsonOnly) {
+    // If Groq failed
+    if (!data?.choices?.[0]?.message?.content) {
       return {
         statusCode: 500,
         body: JSON.stringify({
-          error: "Groq output contained no valid JSON object",
-          rawResponse: raw
-        })
+          error: "Groq did not return content",
+          raw: data,
+        }),
       };
     }
 
+    const raw = data.choices[0].message.content;
+
+    // Clean output (remove ``` blocks)
+    const clean = raw.replace(/```json|```/g, "").trim();
+
     let parsed;
     try {
-      parsed = JSON.parse(jsonOnly);
+      parsed = JSON.parse(clean);
     } catch (err) {
       return {
         statusCode: 500,
         body: JSON.stringify({
-          error: "Groq returned invalid JSON",
-          rawJSON: jsonOnly
-        })
+          error: "Invalid JSON returned from Groq",
+          raw: clean,
+        }),
       };
     }
 
     return {
       statusCode: 200,
-      body: JSON.stringify(parsed)
+      body: JSON.stringify(parsed),
     };
-
   } catch (err) {
     return {
       statusCode: 500,
-      body: JSON.stringify({ error: err.message })
+      body: JSON.stringify({ error: err.message }),
     };
   }
 };
